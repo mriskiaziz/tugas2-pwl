@@ -1,139 +1,102 @@
 const express = require("express");
 
+const bodyparse = require("body-parser");
+
 require("./utils/db");
 const Product = require("./model/product");
 
 const app = express();
 const port = 3000;
 
-const session = require("express-session");
-const cookieparser = require("cookie-parser");
-const flash = require("connect-flash");
-
-app.use(cookieparser("secret"));
-app.use(
-  session({
-    cookie: { maxAge: 6000 },
-    secret: "secret",
-    resave: true,
-    saveUninitialized: true,
-  })
-);
-app.use(flash());
-
-app.set("view engine", "ejs");
-
-const { body, validationResult, check } = require("express-validator");
-const methodOverride = require("method-override");
-
-app.use(express.urlencoded());
+app.use(bodyparse.json());
 
 // Home Product
 app.get("/", async (req, res) => {
   const product = await Product.find();
 
-  res.render("home", {
+  res.json({
     title: "Home",
-    product,
+    product: product,
   });
 });
 
 // Detail Product
 app.get("/detail", async (req, res) => {
-  const product = await Product.findOne({ _id: req.query.id });
+  const product = await Product.findOne({ nama: req.body.nama });
 
-  res.render("detail", {
+  res.json({
     title: "Detail Product",
-    product,
+    product: product,
   });
 });
 
 // Tambah Product
-app.get("/add", async (req, res) => {
-  res.render("add", {
-    title: "Tambah Product",
-  });
-});
-app.post(
-  "/product",
-  [
-    body("nama").custom(async (value) => {
-      const duplikat = await Product.findOne({ nama: value });
-      if (duplikat) {
-        throw new Error("Nama Product Sudah Ada di database");
-      }
-      return true;
-    }),
-  ],
-  (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    } else {
-      Product.insertMany(req.body, (error, result) => {
-        req.flash("msg", "Data Berhasil Ditambahkan");
-        res.redirect("/");
-      });
-    }
-  }
-);
+app.post("/add", async (req, res) => {
+  const duplikat = await Product.findOne({ nama: req.body.nama });
 
-// Hapus Product
-app.get("/delete", async (req, res) => {
-  const product = await Product.findOne({ _id: req.query.id });
-
-  if (!product) {
-    res.status(404);
-    res.send(product);
+  if (duplikat) {
+    res.send("Data Duplikat");
   } else {
-    Product.deleteOne({ _id: product._id }).then((result) => {
-      req.flash("msg", "Data Berhasil Dihapus");
-      res.redirect("/");
+    const product = new Product({
+      nama: req.body.nama,
+      harga: req.body.harga,
+      kategori: req.body.kategori,
+    });
+    const save = await product.save().then((e) => {
+      res.json({
+        product: e,
+        status: "Berhasil Menambah Data",
+      });
     });
   }
 });
 
-// Update
-app.get("/edit", async (req, res) => {
-  const product = await Product.findOne({ _id: req.query.id });
+// Delete Product
+app.delete("/delete", async (req, res) => {
+  const find = await Product.findOne({ nama: req.body.nama });
 
-  res.render("edit", {
-    title: "Edit Product",
-    product,
-  });
-});
-app.post(
-  "/product-edit",
-  [
-    body("nama").custom(async (value) => {
-      const duplikat = await Product.findOne({ nama: value });
-      if (duplikat) {
-        throw new Error("Nama Product Sudah Ada di database");
-      }
-      return true;
-    }),
-  ],
-  (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    } else {
-      Product.updateOne(
-        { _id: req.body._id },
-        {
-          $set: {
-            nama: req.body.nama,
-            harga: req.body.harga,
-            kategori: req.body.kategori,
-          },
-        }
-      ).then(() => {
-        req.flash("msg", "Data Berhasil Dihapus");
-        res.redirect("/");
+  if (find) {
+    Product.deleteOne({ nama: req.body.nama }).then((result) => {
+      res.json({
+        result: result,
+        status: "Berhasil Menghapus Data",
       });
-    }
+    });
+  } else {
+    res.send("Data dengan nama tersebut Tidak Ada di database");
   }
-);
+});
+
+// Update Product
+app.put("/update", async (req, res) => {
+  const find = await Product.findOne({ nama: req.body.namaLama });
+
+  if (find) {
+    const namaBaru = req.body.namaBaru ? req.body.namaBaru : find.nama;
+    const hargaBaru = req.body.hargaBaru ? req.body.hargaBaru : find.harga;
+    const kategoriBaru = req.body.kategoriBaru
+      ? req.body.kategoriBaru
+      : find.kategori;
+
+    Product.updateOne(
+      { _id: find._id },
+      {
+        $set: {
+          nama: namaBaru,
+          harga: hargaBaru,
+          kategori: kategoriBaru,
+        },
+      }
+    ).then((result) => {
+      res.json({
+        result: result,
+        status: "Berhasil Mengupdate Data",
+      });
+    });
+  } else {
+    res.send("Data dengan namaLama tersebut Tidak Ada di database");
+  }
+});
 
 // running app
 app.listen(port, () => {
