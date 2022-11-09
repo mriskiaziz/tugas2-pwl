@@ -14,7 +14,7 @@ ke Code kemudian Download ZIP
 
    - With Git <br>
       ```
-      git clone https://github.com/mriskiaziz/tugas2-pwl.git
+      $ git clone https://github.com/mriskiaziz/tugas2-pwl.git
       ```
 4. Starting
     ```
